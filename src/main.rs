@@ -1,4 +1,4 @@
-use std::{num::NonZeroUsize, str::Utf8Error};
+use std::{cell::{Cell, RefCell}, collections::HashMap, fs::File, io::Error, num::NonZeroUsize, path::PathBuf, rc::Rc, str::Utf8Error};
 
 #[derive(Hash, PartialEq, Eq)]
 struct BlockId {
@@ -17,6 +17,12 @@ struct Offset(usize);
 enum PageError {
     PageOverflow,
     Utf8Error(Utf8Error)
+}
+
+#[derive(Debug)]
+enum FileManagerError {
+    FileCreationError(std::io::Error),
+    DatabaseDirCreationError(std::io::Error),
 }
 
 impl Page {
@@ -88,9 +94,53 @@ impl Page {
     fn get_string(&self, offset: Offset) -> Result<&str, PageError> {
         std::str::from_utf8(self.get_bytes(offset)?).map_err(PageError::Utf8Error)
     }
+}
 
+struct FileManager {
+    block_size: NonZeroUsize,
+    database_dir: PathBuf,
+    open_files: RefCell<HashMap<String, Rc<File>>>
+}
 
-    // fn max_length ...
+impl FileManager {
+    fn new(database_dir: PathBuf, block_size: NonZeroUsize) -> Result<Self, FileManagerError> {
+        match std::fs::create_dir(database_dir.as_path()) {
+            Ok(_) => {},
+            Err(err) => match err.kind() {
+                std::io::ErrorKind::AlreadyExists => {},
+                _ => return Err(FileManagerError::DatabaseDirCreationError(err))
+            }
+        };
+
+        Ok(Self {
+            block_size,
+            database_dir,
+            open_files: RefCell::new(HashMap::new())
+        })
+    }
+
+    fn get_file(&self, file_name: &str) -> Result<Rc<File>, FileManagerError> {
+        let mut open_files = self.open_files.borrow_mut();
+
+        let file = open_files.get(file_name);
+
+        if let Some(file) = file {
+            return Ok(file.clone());
+        };
+
+        let file_path = self.database_dir.join(PathBuf::from(file_name));
+
+        let file = Rc::new(File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(file_path)
+            .map_err(FileManagerError::FileCreationError)?);
+
+        assert!(open_files.insert(file_name.into(), file.clone()).is_none(), "because the file is not supposed to be open");
+
+        Ok(file)
+    }
 }
 
 fn main() {
@@ -103,7 +153,7 @@ mod tests {
 
     use rstest::rstest;
 
-    use crate::{Offset, Page, PageError};
+    use crate::{FileManager, Offset, Page, PageError};
 
     #[rstest]
     #[case::block_too_small(std::mem::size_of::<usize>() - 1, 0)]
@@ -146,4 +196,16 @@ mod tests {
 
         assert!(matches!(system_under_test.get_bytes(Offset(0)), Err(err) if err == PageError::PageOverflow))
     }
+
+    #[test]
+    fn given_db_dir_already_exists_when_new_then_ok_is_returned() {
+        FileManager::new(std::env::temp_dir(), NonZeroUsize::new(100).unwrap()).unwrap();
+    }
+
+    #[test]
+    fn given_file_does_not_exist_when_get_file_then_file_is_created() {
+        let system_under_test = FileManager::new(std::env::temp_dir(), NonZeroUsize::new(100).unwrap()).unwrap();
+        system_under_test.get_file("some_database").unwrap();
+    }
+
 }
