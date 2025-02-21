@@ -1,9 +1,9 @@
-use std::{cell::{Cell, RefCell}, collections::HashMap, fs::File, io::Error, num::NonZeroUsize, path::PathBuf, rc::Rc, str::Utf8Error};
+use std::{cell::RefCell, collections::HashMap, fs::File, io::{Read, Seek, Write}, num::NonZeroUsize, path::PathBuf, rc::Rc, str::Utf8Error};
 
 #[derive(Hash, PartialEq, Eq)]
 struct BlockId {
     file_name: String,
-    block_number: u32
+    block_number: usize
 }
 
 struct Page {
@@ -23,6 +23,8 @@ enum PageError {
 enum FileManagerError {
     FileCreationError(std::io::Error),
     DatabaseDirCreationError(std::io::Error),
+    WriteError(std::io::Error),
+    ReadError(std::io::Error),
 }
 
 impl Page {
@@ -99,7 +101,7 @@ impl Page {
 struct FileManager {
     block_size: NonZeroUsize,
     database_dir: PathBuf,
-    open_files: RefCell<HashMap<String, Rc<File>>>
+    open_files: RefCell<HashMap<String, Rc<RefCell<File>>>>
 }
 
 impl FileManager {
@@ -112,6 +114,8 @@ impl FileManager {
             }
         };
 
+        // TODO: Add temp file removal logic
+
         Ok(Self {
             block_size,
             database_dir,
@@ -119,7 +123,7 @@ impl FileManager {
         })
     }
 
-    fn get_file(&self, file_name: &str) -> Result<Rc<File>, FileManagerError> {
+    fn get_file(&self, file_name: &str) -> Result<Rc<RefCell<File>>, FileManagerError> {
         let mut open_files = self.open_files.borrow_mut();
 
         let file = open_files.get(file_name);
@@ -130,16 +134,35 @@ impl FileManager {
 
         let file_path = self.database_dir.join(PathBuf::from(file_name));
 
-        let file = Rc::new(File::options()
+        let file = Rc::new(RefCell::new(File::options()
             .read(true)
             .write(true)
             .create(true)
             .open(file_path)
-            .map_err(FileManagerError::FileCreationError)?);
+            .map_err(FileManagerError::FileCreationError)?));
 
         assert!(open_files.insert(file_name.into(), file.clone()).is_none(), "because the file is not supposed to be open");
 
         Ok(file)
+    }
+
+    fn write(&self, block: BlockId, page: &Page) -> Result<(), FileManagerError>{
+        let file = self.get_file(&block.file_name)?;
+        let mut file = file.borrow_mut();
+        file
+            .seek(std::io::SeekFrom::Start((block.block_number * self.block_size.get()) as u64))
+            .map_err(FileManagerError::WriteError)?;
+        file.write(&page.byte_buffer).map_err(FileManagerError::WriteError)?;
+        file.flush();
+        Ok(())
+    }
+
+    fn read(&self, block: BlockId, page: &mut Page) -> Result<(), FileManagerError> {
+        let file = self.get_file(&block.file_name)?;
+        let mut file = file.borrow_mut();
+        file.seek(std::io::SeekFrom::Start((block.block_number * self.block_size.get()) as u64)).map_err(FileManagerError::ReadError)?;
+        file.read_exact(&mut page.byte_buffer).map_err(FileManagerError::ReadError)?;
+        Ok(())
     }
 }
 
