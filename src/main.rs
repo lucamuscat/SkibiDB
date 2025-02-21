@@ -167,7 +167,7 @@ impl FileManager {
         .map_err(FileManagerError::WriteError)?;
         file.write(&page.byte_buffer)
             .map_err(FileManagerError::WriteError)?;
-        file.flush();
+        file.flush().map_err(FileManagerError::WriteError)?;
         Ok(())
     }
 
