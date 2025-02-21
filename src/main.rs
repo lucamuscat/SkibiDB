@@ -146,6 +146,7 @@ impl FileManager {
                 .read(true)
                 .write(true)
                 .create(true)
+                .truncate(false)
                 .open(file_path)
                 .map_err(FileManagerError::FileCreationError)?,
         ));
