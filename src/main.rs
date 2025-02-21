@@ -267,7 +267,11 @@ mod tests {
 
     #[test]
     fn given_db_dir_already_exists_when_new_then_ok_is_returned() {
-        FileManager::new(std::env::temp_dir(), NonZeroUsize::new(100).unwrap()).unwrap();
+        let db_path = uniquely_random_tmp_dir();
+        FileManager::new(db_path.clone(), NonZeroUsize::new(100).unwrap()).unwrap();
+        FileManager::new(db_path, NonZeroUsize::new(100).unwrap()).unwrap();
+    }
+
     #[test]
     fn when_new_then_db_path_dir_is_created() {
         let db_path = uniquely_random_tmp_dir();
