@@ -267,11 +267,11 @@ mod tests {
 
     #[test]
     fn given_file_does_not_exist_when_get_file_then_file_is_created() {
-        let system_under_test = FileManager::new(
-            std::env::temp_dir().join(Uuid::new_v4().to_string()),
-            NonZeroUsize::new(100).unwrap(),
-        )
-        .unwrap();
+        let db_path = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        let system_under_test =
+            FileManager::new(db_path.clone(), NonZeroUsize::new(100).unwrap()).unwrap();
         system_under_test.get_file("some_database").unwrap();
+
+        assert!(std::fs::exists(db_path.join("some_database")).unwrap())
     }
 }
