@@ -198,6 +198,10 @@ mod tests {
 
     use crate::{FileManager, Offset, Page, PageError};
 
+    fn uniquely_random_tmp_dir() -> PathBuf {
+        std::env::temp_dir().join(Uuid::new_v4().to_string())
+    }
+
     #[rstest]
     #[case::block_too_small(std::mem::size_of::<usize>() - 1, 0)]
     #[case::set_int_at_end_of_page(100, 100 - std::mem::size_of::<usize>() + 1)]
@@ -268,7 +272,7 @@ mod tests {
 
     #[test]
     fn given_file_does_not_exist_when_get_file_then_file_is_created() {
-        let db_path = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        let db_path = uniquely_random_tmp_dir();
         let system_under_test =
             FileManager::new(db_path.clone(), NonZeroUsize::new(100).unwrap()).unwrap();
         system_under_test.get_file("some_database").unwrap();
