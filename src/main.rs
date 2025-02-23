@@ -4,6 +4,7 @@ use std::{
     fs::File,
     io::{Read, Seek, Write},
     num::NonZeroUsize,
+    os::unix::fs::OpenOptionsExt,
     path::PathBuf,
     rc::Rc,
     str::Utf8Error,
@@ -147,6 +148,7 @@ impl FileManager {
                 .write(true)
                 .create(true)
                 .truncate(false)
+                .custom_flags(libc::O_SYNC)
                 .open(file_path)
                 .map_err(FileManagerError::FileCreationError)?,
         ));
@@ -168,7 +170,6 @@ impl FileManager {
         .map_err(FileManagerError::WriteError)?;
         file.write(&page.byte_buffer)
             .map_err(FileManagerError::WriteError)?;
-        file.flush().map_err(FileManagerError::WriteError)?;
         Ok(())
     }
 
