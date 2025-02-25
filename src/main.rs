@@ -173,7 +173,7 @@ impl FileManager {
         Ok(())
     }
 
-    fn read(&self, block: BlockId, page: &mut Page) -> Result<(), FileManagerError> {
+    fn read(&self, block: &BlockId, page: &mut Page) -> Result<(), FileManagerError> {
         let file = self.get_file(&block.file_name)?;
         let mut file = file.borrow_mut();
         file.seek(std::io::SeekFrom::Start(
