@@ -161,7 +161,7 @@ impl FileManager {
         Ok(file)
     }
 
-    fn write(&self, block: BlockId, page: &Page) -> Result<(), FileManagerError> {
+    fn write(&self, block: &BlockId, page: &Page) -> Result<(), FileManagerError> {
         let file = self.get_file(&block.file_name)?;
         let mut file = file.borrow_mut();
         file.seek(std::io::SeekFrom::Start(
