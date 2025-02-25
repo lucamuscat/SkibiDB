@@ -16,6 +16,7 @@ struct BlockId {
     block_number: usize,
 }
 
+#[derive(Debug)]
 struct Page {
     byte_buffer: Box<[u8]>,
 }
@@ -197,7 +198,7 @@ mod tests {
     use rstest::rstest;
     use uuid::Uuid;
 
-    use crate::{FileManager, Offset, Page, PageError};
+    use crate::{BlockId, FileManager, Offset, Page, PageError};
 
     fn uniquely_random_tmp_dir() -> PathBuf {
         std::env::temp_dir().join(Uuid::new_v4().to_string())
@@ -292,5 +293,35 @@ mod tests {
         system_under_test.get_file("some_database").unwrap();
 
         assert!(std::fs::exists(db_path.join("some_database")).unwrap())
+    }
+
+    #[test]
+    fn when_file_mgr_write_read_roundtrip_then_same_page_is_returned() {
+        let db_path = uniquely_random_tmp_dir();
+        let system_under_test =
+            FileManager::new(db_path.clone(), NonZeroUsize::new(100).unwrap()).unwrap();
+
+        let mut actual_page = Page::new(NonZeroUsize::new(100).unwrap());
+
+        let mut read_page = Page::new(NonZeroUsize::new(100).unwrap());
+
+        actual_page
+            .set_bytes(Offset(20), &[1, 2, 3, 4, 5, 6, 7])
+            .unwrap();
+
+        let actual_block_id = BlockId {
+            file_name: "testDB".into(),
+            block_number: 0,
+        };
+
+        system_under_test
+            .write(&actual_block_id, &actual_page)
+            .unwrap();
+
+        system_under_test
+            .read(&actual_block_id, &mut read_page)
+            .unwrap();
+
+        assert_eq!(read_page.byte_buffer, actual_page.byte_buffer)
     }
 }
