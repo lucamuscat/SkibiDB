@@ -204,9 +204,12 @@ mod tests {
         std::env::temp_dir().join(Uuid::new_v4().to_string())
     }
 
+    const BLOCK_SIZE: usize = 100;
+
     #[rstest]
     #[case::block_too_small(std::mem::size_of::<usize>() - 1, 0)]
-    #[case::set_int_at_end_of_page(100, 100 - std::mem::size_of::<usize>() + 1)]
+    #[case::set_int_at_end_of_page(BLOCK_SIZE, BLOCK_SIZE - std::mem::size_of::<u64>() + 1)]
+    #[case::set_int_overlapping_with_boundary_1(BLOCK_SIZE, BLOCK_SIZE - 1)]
     fn given_out_of_bounds_when_set_int_then_return_err(
         #[case] block_size: usize,
         #[case] offset: usize,
@@ -218,12 +221,14 @@ mod tests {
         );
     }
 
-    #[test]
-    fn when_set_int_then_roundtrip_works() {
-        let mut system_under_test: Page = Page::new(NonZeroUsize::new(100).unwrap());
+    #[rstest]
+    #[case::safe_offset(BLOCK_SIZE, 20)]
+    #[case::safe_offset(BLOCK_SIZE, BLOCK_SIZE - 1 - std::mem::size_of::<u64>())]
+    fn when_set_int_then_roundtrip_works(#[case] block_size: usize, #[case] offset: usize) {
+        let mut system_under_test: Page = Page::new(NonZeroUsize::new(block_size).unwrap());
 
         let expected_value = 1234u64;
-        let expected_offset = Offset(20);
+        let expected_offset = Offset(offset);
 
         system_under_test
             .set_int(expected_offset, expected_value)
@@ -236,7 +241,7 @@ mod tests {
 
     #[test]
     fn when_set_bytes_then_roundtrip_works() {
-        let mut system_under_test = Page::new(NonZeroUsize::new(100).unwrap());
+        let mut system_under_test = Page::new(NonZeroUsize::new(BLOCK_SIZE).unwrap());
 
         let buffer: Vec<u8> = vec![0, 1, 2, 3, 4, 5, 6];
 
@@ -251,7 +256,7 @@ mod tests {
 
     #[test]
     fn given_length_of_bytes_are_too_long_when_get_bytes_then_return_err() {
-        let mut system_under_test = Page::new(NonZeroUsize::new(100).unwrap());
+        let mut system_under_test = Page::new(NonZeroUsize::new(BLOCK_SIZE).unwrap());
 
         let buffer: Vec<u8> = vec![0, 1, 2, 3, 4];
 
@@ -270,14 +275,14 @@ mod tests {
     #[test]
     fn given_db_dir_already_exists_when_new_then_ok_is_returned() {
         let db_path = uniquely_random_tmp_dir();
-        FileManager::new(db_path.clone(), NonZeroUsize::new(100).unwrap()).unwrap();
+        FileManager::new(db_path.clone(), NonZeroUsize::new(BLOCK_SIZE).unwrap()).unwrap();
         FileManager::new(db_path, NonZeroUsize::new(100).unwrap()).unwrap();
     }
 
     #[test]
     fn when_new_then_db_path_dir_is_created() {
         let db_path = uniquely_random_tmp_dir();
-        FileManager::new(db_path.clone(), NonZeroUsize::new(100).unwrap()).unwrap();
+        FileManager::new(db_path.clone(), NonZeroUsize::new(BLOCK_SIZE).unwrap()).unwrap();
 
         let metadata = std::fs::metadata(db_path)
             .expect("because the call to metadata was expected to succeed.");
@@ -289,7 +294,7 @@ mod tests {
     fn given_file_does_not_exist_when_get_file_then_file_is_created() {
         let db_path = uniquely_random_tmp_dir();
         let system_under_test =
-            FileManager::new(db_path.clone(), NonZeroUsize::new(100).unwrap()).unwrap();
+            FileManager::new(db_path.clone(), NonZeroUsize::new(BLOCK_SIZE).unwrap()).unwrap();
         system_under_test.get_file("some_database").unwrap();
 
         assert!(std::fs::exists(db_path.join("some_database")).unwrap())
@@ -299,11 +304,11 @@ mod tests {
     fn when_file_mgr_write_read_roundtrip_then_same_page_is_returned() {
         let db_path = uniquely_random_tmp_dir();
         let system_under_test =
-            FileManager::new(db_path.clone(), NonZeroUsize::new(100).unwrap()).unwrap();
+            FileManager::new(db_path.clone(), NonZeroUsize::new(BLOCK_SIZE).unwrap()).unwrap();
 
-        let mut actual_page = Page::new(NonZeroUsize::new(100).unwrap());
+        let mut actual_page = Page::new(NonZeroUsize::new(BLOCK_SIZE).unwrap());
 
-        let mut read_page = Page::new(NonZeroUsize::new(100).unwrap());
+        let mut read_page = Page::new(NonZeroUsize::new(BLOCK_SIZE).unwrap());
 
         actual_page
             .set_bytes(Offset(20), &[1, 2, 3, 4, 5, 6, 7])
