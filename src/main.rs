@@ -46,24 +46,24 @@ impl Page {
         Self { byte_buffer }
     }
 
-    fn set_int(&mut self, offset: Offset, value: usize) -> Result<(), PageError> {
+    fn set_int(&mut self, offset: Offset, value: u64) -> Result<(), PageError> {
         // check the Write trait for Box<u8>
-        if offset.0 + std::mem::size_of::<usize>() > (self.byte_buffer.len() - 1) {
+        if offset.0 + std::mem::size_of::<u64>() > (self.byte_buffer.len() - 1) {
             return Err(PageError::PageOverflow);
         };
 
-        self.byte_buffer[offset.0..offset.0 + std::mem::size_of::<usize>()]
+        self.byte_buffer[offset.0..offset.0 + std::mem::size_of::<u64>()]
             .copy_from_slice(&value.to_le_bytes());
 
         Ok(())
     }
 
     fn get_int(&self, offset: Offset) -> Result<usize, PageError> {
-        if offset.0 + std::mem::size_of::<u32>() > (self.byte_buffer.len() - 1) {
+        if offset.0 + std::mem::size_of::<u64>() > (self.byte_buffer.len() - 1) {
             return Err(PageError::PageOverflow);
         };
 
-        let bytes = &self.byte_buffer[offset.0..offset.0 + std::mem::size_of::<usize>()];
+        let bytes = &self.byte_buffer[offset.0..offset.0 + std::mem::size_of::<u64>()];
 
         // TODO: Find a way to have this portable across both 32bit and 64 bit machines.
         Ok(usize::from_le_bytes([
@@ -74,13 +74,13 @@ impl Page {
     fn set_bytes(&mut self, offset: Offset, value: &[u8]) -> Result<(), PageError> {
         // We are also storing the size of the bytes alongsize the bytes themselves.
         // Make sure that there is also enough space for the length.
-        if offset.0 + value.len() + std::mem::size_of::<u32>() > (self.byte_buffer.len() - 1) {
+        if offset.0 + value.len() + std::mem::size_of::<u64>() > (self.byte_buffer.len() - 1) {
             return Err(PageError::PageOverflow);
         };
 
-        self.set_int(offset, value.len()).unwrap();
+        self.set_int(offset, value.len() as u64).unwrap();
 
-        let offset_after_size = offset.0 + std::mem::size_of::<usize>();
+        let offset_after_size = offset.0 + std::mem::size_of::<u64>();
 
         self.byte_buffer[offset_after_size..offset_after_size + value.len()].copy_from_slice(value);
 
@@ -222,14 +222,14 @@ mod tests {
     fn when_set_int_then_roundtrip_works() {
         let mut system_under_test: Page = Page::new(NonZeroUsize::new(100).unwrap());
 
-        let expected_value: usize = 1234usize;
+        let expected_value = 1234u64;
         let expected_offset = Offset(20);
 
         system_under_test
             .set_int(expected_offset, expected_value)
             .unwrap();
         assert_eq!(
-            system_under_test.get_int(expected_offset).unwrap(),
+            system_under_test.get_int(expected_offset).unwrap() as u64,
             expected_value
         )
     }
