@@ -216,6 +216,11 @@ mod tests {
         std::env::temp_dir().join(Uuid::new_v4().to_string())
     }
 
+    fn create_file_manager() -> FileManager {
+        let db_path = uniquely_random_tmp_dir();
+        FileManager::new(db_path.clone(), NonZeroUsize::new(BLOCK_SIZE).unwrap()).unwrap()
+    }
+
     const BLOCK_SIZE: usize = 100;
 
     #[rstest]
@@ -293,10 +298,9 @@ mod tests {
 
     #[test]
     fn when_new_then_db_path_dir_is_created() {
-        let db_path = uniquely_random_tmp_dir();
-        FileManager::new(db_path.clone(), NonZeroUsize::new(BLOCK_SIZE).unwrap()).unwrap();
+        let system_under_test = create_file_manager();
 
-        let metadata = std::fs::metadata(db_path)
+        let metadata = std::fs::metadata(system_under_test.database_dir)
             .expect("because the call to metadata was expected to succeed.");
 
         assert!(metadata.is_dir())
@@ -304,19 +308,15 @@ mod tests {
 
     #[test]
     fn given_file_does_not_exist_when_get_file_then_file_is_created() {
-        let db_path = uniquely_random_tmp_dir();
-        let system_under_test =
-            FileManager::new(db_path.clone(), NonZeroUsize::new(BLOCK_SIZE).unwrap()).unwrap();
+        let system_under_test = create_file_manager();
         system_under_test.get_file("some_database").unwrap();
 
-        assert!(std::fs::exists(db_path.join("some_database")).unwrap())
+        assert!(std::fs::exists(system_under_test.database_dir.join("some_database")).unwrap())
     }
 
     #[test]
     fn when_file_mgr_write_read_roundtrip_then_same_page_is_returned() {
-        let db_path = uniquely_random_tmp_dir();
-        let system_under_test =
-            FileManager::new(db_path.clone(), NonZeroUsize::new(BLOCK_SIZE).unwrap()).unwrap();
+        let system_under_test = create_file_manager();
 
         let mut actual_page = Page::new(NonZeroUsize::new(BLOCK_SIZE).unwrap());
 
@@ -344,9 +344,7 @@ mod tests {
 
     #[test]
     fn test_length() {
-        let db_path = uniquely_random_tmp_dir();
-        let system_under_test =
-            FileManager::new(db_path.clone(), NonZeroUsize::new(BLOCK_SIZE).unwrap()).unwrap();
+        let system_under_test = create_file_manager();
 
         let page = Page::new(NonZeroUsize::new(BLOCK_SIZE).unwrap());
 
