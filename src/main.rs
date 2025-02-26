@@ -166,6 +166,8 @@ impl FileManager {
     fn write(&self, block: &BlockId, page: &Page) -> Result<(), FileManagerError> {
         let file = self.get_file(&block.file_name)?;
         let mut file = file.borrow_mut();
+
+        // TODO: Use pwrite to avoid seeking
         file.seek(std::io::SeekFrom::Start(
             (block.block_number * self.block_size.get()) as u64,
         ))
@@ -178,6 +180,8 @@ impl FileManager {
     fn read(&self, block: &BlockId, page: &mut Page) -> Result<(), FileManagerError> {
         let file = self.get_file(&block.file_name)?;
         let mut file = file.borrow_mut();
+
+        // TODO: Use pread to avoid seeking
         file.seek(std::io::SeekFrom::Start(
             (block.block_number * self.block_size.get()) as u64,
         ))
@@ -251,12 +255,16 @@ mod tests {
     }
 
     #[rstest]
-    #[case::safe_offset(BLOCK_SIZE, 20)]
-    #[case::safe_offset(BLOCK_SIZE, BLOCK_SIZE - 1 - std::mem::size_of::<u64>())]
-    fn when_set_int_then_roundtrip_works(#[case] block_size: usize, #[case] offset: usize) {
+    #[case::safe_offset(BLOCK_SIZE, 20, 1234)]
+    #[case::safe_offset(BLOCK_SIZE, BLOCK_SIZE - 1 - std::mem::size_of::<u64>(), 1234)]
+    #[case::multi_byte_int(BLOCK_SIZE, 0, 0xdeadbeef13374200)]
+    fn when_set_int_then_roundtrip_works(
+        #[case] block_size: usize,
+        #[case] offset: usize,
+        #[case] expected_value: u64,
+    ) {
         let mut system_under_test: Page = Page::new(NonZeroUsize::new(block_size).unwrap());
 
-        let expected_value = 1234u64;
         let expected_offset = Offset(offset);
 
         system_under_test
