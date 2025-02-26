@@ -4,7 +4,7 @@ use std::{
     fs::File,
     io::{Read, Seek, Write},
     num::NonZeroUsize,
-    os::unix::fs::OpenOptionsExt,
+    os::unix::fs::{MetadataExt, OpenOptionsExt},
     path::PathBuf,
     rc::Rc,
     str::Utf8Error,
@@ -36,6 +36,7 @@ enum FileManagerError {
     DatabaseDirCreationError(std::io::Error),
     WriteError(std::io::Error),
     ReadError(std::io::Error),
+    MetadataError(std::io::Error),
 }
 
 impl Page {
@@ -185,6 +186,17 @@ impl FileManager {
             .map_err(FileManagerError::ReadError)?;
         Ok(())
     }
+
+    /// Returns the number of blocks allocated to the file.
+    fn length(&self, file_name: &str) -> Result<u64, FileManagerError> {
+        let file = self.get_file(file_name)?;
+        let metadata = file
+            .borrow_mut()
+            .metadata()
+            .map_err(FileManagerError::MetadataError)?;
+
+        Ok(metadata.size() / self.block_size.get() as u64)
+    }
 }
 
 fn main() {
@@ -328,5 +340,35 @@ mod tests {
             .unwrap();
 
         assert_eq!(read_page.byte_buffer, actual_page.byte_buffer)
+    }
+
+    #[test]
+    fn test_length() {
+        let db_path = uniquely_random_tmp_dir();
+        let system_under_test =
+            FileManager::new(db_path.clone(), NonZeroUsize::new(BLOCK_SIZE).unwrap()).unwrap();
+
+        let page = Page::new(NonZeroUsize::new(BLOCK_SIZE).unwrap());
+
+        let file_name = "testDB".to_string();
+
+        let expected_length = 2;
+
+        let block_id_1 = BlockId {
+            block_number: 0,
+            file_name: file_name.clone(),
+        };
+
+        let block_id_2 = BlockId {
+            block_number: 1,
+            file_name: file_name.clone(),
+        };
+
+        system_under_test.write(&block_id_1, &page).unwrap();
+        system_under_test.write(&block_id_2, &page).unwrap();
+
+        assert!(
+            matches!(system_under_test.length(file_name.as_str()), Ok(length) if length == expected_length)
+        )
     }
 }
