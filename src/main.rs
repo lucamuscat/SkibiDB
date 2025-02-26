@@ -197,6 +197,18 @@ impl FileManager {
 
         Ok(metadata.size() / self.block_size.get() as u64)
     }
+
+    // TODO: Find a way to make this multi-process safe.
+    fn append(&self, file_name: &str) -> Result<BlockId, FileManagerError> {
+        let new_block_num = self.length(file_name)?;
+        let block_id = BlockId {
+            block_number: new_block_num as usize,
+            file_name: file_name.into(),
+        };
+        let page = Page::new(self.block_size);
+        self.write(&block_id, &page)?;
+        Ok(block_id)
+    }
 }
 
 fn main() {
@@ -368,5 +380,16 @@ mod tests {
         assert!(
             matches!(system_under_test.length(file_name.as_str()), Ok(length) if length == expected_length)
         )
+    }
+
+    #[test]
+    fn test_append() {
+        let system_under_test = create_file_manager();
+        let file_name = "testDB";
+        system_under_test.append(&file_name).unwrap();
+        assert_eq!(system_under_test.length(&file_name).unwrap(), 1);
+
+        system_under_test.append(&file_name).unwrap();
+        assert_eq!(system_under_test.length(&file_name).unwrap(), 2);
     }
 }
